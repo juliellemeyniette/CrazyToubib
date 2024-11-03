@@ -25,18 +25,21 @@
 
 <body>
     <script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
-    "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
-  }
-}
-</script>
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+            "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js",
+            "GLTFLoader": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/loaders/GLTFLoader.js"
+          }
+        }
+        </script>
     <script type="module">
         import * as THREE from 'three'
         import * as CANNON from 'cannon-es'
         import { WebGLRenderer } from 'three'
+        import { GLTFLoader } from 'GLTFLoader';
+
 
         var world;
         var dt = 1 / 60;
@@ -57,6 +60,16 @@
 
         // To be synced
         var meshes = [], bodies = [];
+        // DONE : added hand model :
+        var handModel;
+
+        // No organ map, so organ like colors
+        const organMaterial = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(0.8, 0.2, 0.2),
+            roughness: 0.5,
+            metalness: 0.2,
+            //map: organTexture
+        });
 
         initCannon();
         init();
@@ -65,19 +78,19 @@
         function init() {
             // Check for WebGL support 
             // DONE : maybe not usefull
-                try {
-                    renderer = new WebGLRenderer({ antialias: true });
-                } catch (error) {
-                    document.body.innerHTML = `
+            try {
+                renderer = new WebGLRenderer({ antialias: true });
+            } catch (error) {
+                document.body.innerHTML = `
                 <div style="text-align: center; padding: 20px;">
                     <p>Sorry, your browser does not support WebGL</p>
                     <p>Please try using a modern browser like Chrome, Firefox, or Edge</p>
                 </div>
             `;
-                    return;
-                }
+                return;
+            }
 
-            // DONE :Create a Raycaster replacing a Projector (depreciated)
+            // DONE :Create a Raycaster replacing a projector (WAS depreciated)
             raycaster = new THREE.Raycaster();
 
             container = document.createElement('div');
@@ -104,6 +117,11 @@
 
             light.castShadow = true;
             //light.shadowCameraVisible = true;
+
+            // TODO :
+            // Adjust lighting
+            light.intensity = 1.2;
+            light.color.setRGB(1, 0.8, 0.8);
 
             light.shadowMapWidth = 1024;
             light.shadowMapHeight = 1024;
@@ -135,7 +153,7 @@
             var cubeGeo = new THREE.BoxGeometry(1, 1, 1, 10, 10);
             var cubeMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
             for (var i = 0; i < N; i++) {
-                cubeMesh = new THREE.Mesh(cubeGeo, cubeMaterial);
+                cubeMesh = new THREE.Mesh(cubeGeo, organMaterial);
                 cubeMesh.castShadow = true;
                 meshes.push(cubeMesh);
                 scene.add(cubeMesh);
@@ -156,14 +174,32 @@
             window.addEventListener("mousemove", onMouseMove, false);
             window.addEventListener("mousedown", onMouseDown, false);
             window.addEventListener("mouseup", onMouseUp, false);
+
+            //DONE : adding hand 
+            // Load hand model
+            const loader = new GLTFLoader();
+            loader.load('hand_low_poly.glb', function (gltf) {
+                handModel = gltf.scene; // Store the loaded model
+                handModel.scale.set(1, 8, 8); // Scale the model as needed
+                scene.add(handModel); // Add it to the scene
+                console.log('Model loaded:', handModel);
+
+                //DONE : 
+                // Call setClickMarker here, after the model has been loaded
+                setClickMarker(0, 0, 0); // Set the initial position of the click marker
+            }, undefined, function (error) {
+                console.error('An error happened while loading the model:', error);
+            });
         }
 
         function setClickMarker(x, y, z) {
             if (!clickMarker) {
-                var shape = new THREE.SphereGeometry(0.2, 8, 8);
-                clickMarker = new THREE.Mesh(shape, markerMaterial);
+                var handModel = new THREE.SphereGeometry(0.2, 8, 8);
+                clickMarker = new THREE.Mesh(handModel, markerMaterial);
                 scene.add(clickMarker);
-            }
+                } else if (!handModel) {
+                    console.error('handModel is not working, so no click marker');
+                }
             clickMarker.visible = true;
             clickMarker.position.set(x, y, z);
         }
@@ -285,6 +321,7 @@
             updatePhysics();
             render();
         }
+
 
         function updatePhysics() {
             world.step(dt);
